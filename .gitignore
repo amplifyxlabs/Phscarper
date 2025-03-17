@@ -16,5 +16,3 @@ Thumbs.db
 # Screenshots
 *.png
 
-# Package lock
-package-lock.json
