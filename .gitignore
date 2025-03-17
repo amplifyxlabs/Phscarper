@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.env
+
+# Output files
+*.csv
+*.json
+*.png
+*.jpg
+logs/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db 
