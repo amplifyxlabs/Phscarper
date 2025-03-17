@@ -1,40 +1,6 @@
 # Product Hunt Scraper
 
-A Node.js scraper for extracting product and maker information from Product Hunt.
-
-## Features
-
-- Scrapes product information from Product Hunt leaderboards
-- Extracts product website URLs
-- Collects contact information from product websites
-- Gathers maker information including social media profiles
-- Exports data to CSV format
-
-## Setup
-
-1. Install dependencies:
-```
-npm install
-```
-
-2. Create a `.env` file with your configuration options (see below)
-
-3. Run the scraper:
-```
-node index.js
-```
-
-## Configuration
-
-You can configure the scraper using environment variables:
-
-- `HEADLESS`: Run browser in headless mode (true/false)
-- `MAX_PRODUCTS`: Maximum number of products to scrape
-- `DELAY_BETWEEN_REQUESTS`: Delay between requests in milliseconds
-- `DEBUG_MODE`: Enable debug mode (true/false)
-- `TARGET_URL`: Product Hunt URL to scrape
-- `MAX_MAKERS_PER_PRODUCT`: Maximum number of makers to process per product
-- `SKIP_COMMENTS`: Skip comment extraction (true/false)
+A web scraper to extract product and maker information from Product Hunt, including emails, Twitter handles, and LinkedIn profiles.
 
 ## Important URLs
 
@@ -44,6 +10,94 @@ You can configure the scraper using environment variables:
 4. **Product API Endpoint**: https://www.producthunt.com/posts/:slug
 5. **Product Redirect URLs**: https://www.producthunt.com/r/:id
 6. **Developer API**: https://www.producthunt.com/v2/oauth/applications
+
+## Features
+
+- Scrapes product information from Product Hunt leaderboard
+- Extracts maker contact information (email, Twitter, LinkedIn)
+- Detects and follows redirects to product websites
+- **NEW**: Extracts contact information from product websites (email, Twitter, LinkedIn, contact pages)
+- Saves data in CSV format
+- Captures API endpoints for further exploration
+
+## Installation
+
+1. Clone this repository
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Configure the scraper by editing the `.env` file:
+
+```
+# Target URL to scrape (Product Hunt leaderboard)
+TARGET_URL=https://www.producthunt.com/leaderboard/daily/2025/3/17/all
+
+# Maximum number of products to scrape
+MAX_PRODUCTS=30
+
+# Delay between requests in milliseconds (to avoid rate limiting)
+DELAY_BETWEEN_REQUESTS=2000
+
+# Run in headless mode (true/false)
+HEADLESS=false
+
+# Enable debug mode for additional output (true/false)
+DEBUG_MODE=true
+
+# Maximum number of makers to scrape per product
+MAX_MAKERS_PER_PRODUCT=4
+
+# Skip comment sections
+SKIP_COMMENTS=true
+```
+
+## Usage
+
+Run the scraper with default settings:
+
+```bash
+npm start
+```
+
+Run in debug mode:
+
+```bash
+npm run debug
+```
+
+Run in headless mode:
+
+```bash
+npm run headless
+```
+
+## Output
+
+The scraper will generate the following files:
+
+1. `product_hunt_data_YYYY-MM-DD.csv`: CSV file containing all scraped data
+2. `product_hunt_api_endpoints.json`: JSON file containing identified GraphQL API endpoints
+3. `product_hunt_api_info.txt`: Text file containing API authentication information
+
+## CSV Format
+
+The CSV file contains the following columns:
+
+- Product Name
+- Product URL
+- Product Website
+- Maker Name
+- Maker URL
+- Email
+- X (Twitter) ID
+- LinkedIn URL
+- Website Email
+- Website Twitter
+- Website LinkedIn
+- Website Contact Page
 
 ## How It Works
 

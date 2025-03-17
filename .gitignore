@@ -1,23 +1,20 @@
-# Node.js
+# Node.js dependencies
 node_modules/
-npm-debug.log
-yarn-error.log
-yarn-debug.log
+
+# Environment variables
 .env
 
-# Output files
-*.csv
-*.json
-*.png
-*.jpg
+# Logs
 logs/
+*.log
+npm-debug.log*
 
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
+# Operating System Files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Screenshots from web scraping
+*.png
+
+# Package lock
+package-lock.json 
