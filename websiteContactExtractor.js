@@ -64,14 +64,14 @@ async function extractWebsiteContactInfo(browser, websiteUrl) {
     
     while (!navigationSuccessful && retryCount < maxRetries) {
       try {
-        // Different wait conditions for each retry
+        // Different wait conditions for each retry - start with lightweight approach
         let waitUntil;
         if (retryCount === 0) {
-          waitUntil = 'networkidle2'; // Most complete loading
+          waitUntil = 'domcontentloaded'; // Minimal loading, just DOM
         } else if (retryCount === 1) {
           waitUntil = 'networkidle0'; // Less strict loading
         } else {
-          waitUntil = 'domcontentloaded'; // Minimal loading, just DOM
+          waitUntil = 'networkidle2'; // Most complete loading as last resort
         }
         
         console.log(`Navigation attempt ${retryCount + 1}/${maxRetries} with wait condition: ${waitUntil}`);
@@ -179,7 +179,7 @@ async function extractWebsiteContactInfo(browser, websiteUrl) {
     if (contactPageUrl) {
       console.log('Found contact page:', contactPageUrl);
       try {
-        await page.goto(contactPageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.goto(contactPageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await delay(2000);
         
         // Extract from contact page
@@ -187,7 +187,7 @@ async function extractWebsiteContactInfo(browser, websiteUrl) {
         console.log('Contact info from contact page:', contactPageInfo);
         
         // Go back to main page
-        await page.goto(websiteUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.goto(websiteUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await delay(2000);
       } catch (error) {
         console.log('Error processing contact page:', error.message);
@@ -530,9 +530,12 @@ async function extractContactInfoFromPage(page) {
 
       // 4. Check elements with common email-related text
       const emailKeywords = ['email', 'mail', 'contact', 'support', 'info', 'help'];
+      
+      // Get all text-containing elements instead of using the invalid :contains selector
+      const allElements = document.querySelectorAll('a, p, span, div, h1, h2, h3, h4, h5, h6, label, button');
       emailKeywords.forEach(keyword => {
-        document.querySelectorAll(`*:contains("${keyword}")`).forEach(element => {
-          if (isVisible(element)) {
+        allElements.forEach(element => {
+          if (isVisible(element) && element.textContent.toLowerCase().includes(keyword)) {
             extractEmailFromText(element.textContent);
           }
         });

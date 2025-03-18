@@ -13,7 +13,7 @@ async function extractContactInfo(browser, makerUrl) {
     
     // Navigate to the maker's profile
     await page.goto(makerUrl, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: 30000
     });
     

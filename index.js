@@ -52,7 +52,9 @@ async function main() {
         '--disable-features=site-per-process',
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
+        '--disable-dev-shm-usage',
+         '--disable-gpu',
+    '--disable-software-rasterizer'
       ]
     };
     

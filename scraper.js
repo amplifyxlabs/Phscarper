@@ -237,7 +237,7 @@ async function getProductsFromLeaderboard(browser, config) {
   try {
     // Navigate to the leaderboard page
     await page.goto(config.targetUrl, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: 60000
     });
     
@@ -415,7 +415,7 @@ async function getProductDetails(browser, productUrl, config) {
     
     // Navigate to the product page
     await page.goto(productUrl, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: 60000
     });
     
@@ -490,7 +490,7 @@ async function getProductDetails(browser, productUrl, config) {
           
           // Navigate to the redirect URL
           const response = await redirectPage.goto(redirectUrl, { 
-            waitUntil: 'networkidle2', 
+            waitUntil: 'domcontentloaded', 
             timeout: 30000 
           });
           
