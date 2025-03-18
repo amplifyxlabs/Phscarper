@@ -151,28 +151,102 @@ async function extractWebsiteContactInfo(browser, websiteUrl) {
     // Wait for the page to fully load
     await delay(2000);
     
+    // After successful navigation, first try to find and visit contact page
+    let contactPageUrl = '';
+    try {
+      contactPageUrl = await page.evaluate(() => {
+        const contactLinks = Array.from(document.querySelectorAll('a')).filter(link => {
+          const href = link.href.toLowerCase();
+          const text = link.textContent.toLowerCase();
+          return (href.includes('/contact') || 
+                 href.includes('/about') || 
+                 href.includes('/support') || 
+                 text.includes('contact') || 
+                 text.includes('get in touch') ||
+                 text.includes('reach out')) &&
+                 !href.includes('#') && // Exclude anchor links
+                 !href.includes('javascript:'); // Exclude javascript: links
+        });
+        return contactLinks.length > 0 ? contactLinks[0].href : '';
+      });
+    } catch (error) {
+      console.log('Error finding contact page:', error.message);
+    }
+
+    let contactPageInfo = { email: '', twitter: '', linkedin: '', website: '' };
+    
+    // If contact page found, visit it first
+    if (contactPageUrl) {
+      console.log('Found contact page:', contactPageUrl);
+      try {
+        await page.goto(contactPageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await delay(2000);
+        
+        // Extract from contact page
+        contactPageInfo = await extractContactInfoFromPage(page);
+        console.log('Contact info from contact page:', contactPageInfo);
+        
+        // Go back to main page
+        await page.goto(websiteUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await delay(2000);
+      } catch (error) {
+        console.log('Error processing contact page:', error.message);
+      }
+    }
+
     // First extract contact info from the initial page load
     let initialContactInfo = await extractContactInfoFromPage(page);
-    
-    // Then scroll to the bottom of the page to load the footer
-    await page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-    });
-    
-    // Wait longer for any lazy-loaded content to appear
+
+    // Scroll to bottom in multiple steps to ensure all content loads
+    console.log('Scrolling page in steps...');
+    const totalHeight = await page.evaluate(() => document.body.scrollHeight);
+    const scrollSteps = 4; // Divide scrolling into steps
+    for (let i = 1; i <= scrollSteps; i++) {
+      await page.evaluate((step, total, steps) => {
+        window.scrollTo(0, (step/steps) * total);
+      }, i, totalHeight, scrollSteps);
+      await delay(1000); // Wait for content to load
+    }
+
+    // Wait longer for any lazy-loaded content
     await delay(3000);
-    
+
     // Extract contact info again after scrolling
     let footerContactInfo = await extractContactInfoFromPage(page);
-    
-    // Merge the results, preferring non-empty values from footerContactInfo
+
+    // Merge all results, preferring non-empty values in this order:
+    // 1. Contact page info
+    // 2. Footer info
+    // 3. Initial page info
     const mergedContactInfo = {
-      email: footerContactInfo.email || initialContactInfo.email || '',
-      twitter: footerContactInfo.twitter || initialContactInfo.twitter || '',
-      linkedin: footerContactInfo.linkedin || initialContactInfo.linkedin || '',
-      website: footerContactInfo.website || initialContactInfo.website || ''
+      email: contactPageInfo.email || footerContactInfo.email || initialContactInfo.email || '',
+      twitter: contactPageInfo.twitter || footerContactInfo.twitter || initialContactInfo.twitter || '',
+      linkedin: contactPageInfo.linkedin || footerContactInfo.linkedin || initialContactInfo.linkedin || '',
+      website: contactPageInfo.website || footerContactInfo.website || initialContactInfo.website || ''
     };
-    
+
+    // If still no email found, try to extract from page source
+    if (!mergedContactInfo.email) {
+      const pageSource = await page.content();
+      const emailMatches = pageSource.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
+      if (emailMatches) {
+        // Filter and clean email matches
+        const validEmails = emailMatches
+          .filter(email => {
+            return !email.includes('example.com') &&
+                   !email.includes('yourdomain.com') &&
+                   !email.includes('domain.com') &&
+                   email.length < 100; // Basic sanity check
+          })
+          .map(email => email.trim());
+        
+        if (validEmails.length > 0) {
+          mergedContactInfo.email = validEmails[0];
+          console.log('Found email in page source:', mergedContactInfo.email);
+        }
+      }
+    }
+
     return mergedContactInfo;
   } catch (error) {
     console.error(`Error extracting website contact info: ${error.message}`);
@@ -387,75 +461,143 @@ async function extractContactInfoFromPage(page) {
     }
   }
   
-  // If email not found in links, look for it in text
+  // Enhanced email extraction
   if (!email) {
-    const pageText = $('body').text();
-    // Improved email regex that better handles boundaries and common patterns
-    const emailRegex = /\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/gi;
-    const emailMatches = pageText.match(emailRegex);
+    console.log('Looking for email with enhanced extraction...');
     
-    if (emailMatches && emailMatches.length > 0) {
-      // Filter out common false positives
-      const filteredEmails = emailMatches.filter(email => {
-        return !email.includes('example.com') && 
-               !email.includes('yourdomain.com') && 
-               !email.includes('domain.com') && 
-               !email.includes('email@') && 
-               !email.includes('user@') &&
-               !email.includes('username@') &&
-               !email.includes('name@') &&
-               !email.includes('your@') &&
-               !email.includes('someone@') &&
-               !email.includes('john.doe@') &&
-               !email.includes('jane.doe@') &&
-               !email.includes('test@');
-      });
+    // Use JavaScript to find emails in various page elements
+    const jsEmails = await page.evaluate(() => {
+      const emails = new Set();
       
-      if (filteredEmails.length > 0) {
-        // Prioritize business emails over generic ones
-        const businessEmails = filteredEmails.filter(email => 
-          !email.toLowerCase().includes('gmail.com') && 
-          !email.toLowerCase().includes('yahoo.com') && 
-          !email.toLowerCase().includes('hotmail.com') && 
-          !email.toLowerCase().includes('outlook.com') && 
-          !email.toLowerCase().includes('icloud.com') && 
-          !email.toLowerCase().includes('aol.com') && 
-          !email.toLowerCase().includes('protonmail.com') && 
-          !email.toLowerCase().includes('mail.com')
-        );
-        
-        if (businessEmails.length > 0) {
-          // Prioritize contact/info/hello emails
-          const priorityEmails = businessEmails.filter(email => 
-            email.toLowerCase().includes('contact@') || 
-            email.toLowerCase().includes('info@') || 
-            email.toLowerCase().includes('hello@') || 
-            email.toLowerCase().includes('support@') || 
-            email.toLowerCase().includes('help@')
-          );
-          
-          email = priorityEmails.length > 0 ? priorityEmails[0] : businessEmails[0];
-        } else {
-          email = filteredEmails[0];
+      // Helper function to extract email from text
+      const extractEmailFromText = (text) => {
+        const matches = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
+        if (matches) {
+          matches.forEach(email => emails.add(email.toLowerCase()));
         }
-        
-        console.log(`Found email in text: ${email}`);
-      }
-    }
-    
-    // Also look for email in specific elements that commonly contain contact info
-    if (!email) {
-      const contactElements = $('[class*="contact"], [class*="email"], [id*="contact"], [id*="email"], [data-contact], [data-email]');
-      contactElements.each((_, element) => {
-        if (email) return; // Skip if we already found an email
-        
-        const text = $(element).text();
-        const emailMatch = text.match(/\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/);
-        if (emailMatch && emailMatch[1]) {
-          email = emailMatch[1];
-          console.log(`Found email in contact element: ${email}`);
+      };
+
+      // Helper to check if element is visible
+      const isVisible = (element) => {
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none' && 
+               style.visibility !== 'hidden' && 
+               style.opacity !== '0' &&
+               element.offsetWidth > 0 &&
+               element.offsetHeight > 0;
+      };
+
+      // 1. Check footer elements first
+      const footerElements = document.querySelectorAll('footer, [class*="footer"], [id*="footer"]');
+      footerElements.forEach(footer => {
+        if (isVisible(footer)) {
+          extractEmailFromText(footer.textContent);
         }
       });
+
+      // 2. Check contact sections
+      const contactSelectors = [
+        '[class*="contact"]',
+        '[id*="contact"]',
+        '[class*="email"]',
+        '[id*="email"]',
+        '.address',
+        '.info',
+        '.reach-us',
+        '.get-in-touch',
+        '[class*="support"]',
+        '[class*="help"]'
+      ];
+      
+      contactSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(element => {
+          if (isVisible(element)) {
+            extractEmailFromText(element.textContent);
+          }
+        });
+      });
+
+      // 3. Check data attributes
+      document.querySelectorAll('[data-email], [data-mail], [data-contact]').forEach(element => {
+        const dataEmail = element.getAttribute('data-email') || 
+                         element.getAttribute('data-mail') ||
+                         element.getAttribute('data-contact');
+        if (dataEmail) {
+          extractEmailFromText(dataEmail);
+        }
+      });
+
+      // 4. Check elements with common email-related text
+      const emailKeywords = ['email', 'mail', 'contact', 'support', 'info', 'help'];
+      emailKeywords.forEach(keyword => {
+        document.querySelectorAll(`*:contains("${keyword}")`).forEach(element => {
+          if (isVisible(element)) {
+            extractEmailFromText(element.textContent);
+          }
+        });
+      });
+
+      // 5. Check for obfuscated emails in scripts
+      document.querySelectorAll('script').forEach(script => {
+        const content = script.textContent;
+        if (content && (content.includes('@') || content.includes('mailto:'))) {
+          extractEmailFromText(content);
+        }
+      });
+
+      // 6. Check meta tags
+      document.querySelectorAll('meta').forEach(meta => {
+        const content = meta.getAttribute('content');
+        if (content) {
+          extractEmailFromText(content);
+        }
+      });
+
+      // Filter and prioritize emails
+      return Array.from(emails).filter(email => {
+        return !email.includes('example.com') &&
+               !email.includes('yourdomain.com') &&
+               !email.includes('domain.com') &&
+               !email.includes('test@') &&
+               !email.includes('user@') &&
+               !email.includes('email@') &&
+               email.length < 100;
+      });
+    });
+
+    if (jsEmails && jsEmails.length > 0) {
+      // Prioritize business emails over generic ones
+      const businessEmails = jsEmails.filter(email =>
+        !email.includes('gmail.com') &&
+        !email.includes('yahoo.com') &&
+        !email.includes('hotmail.com') &&
+        !email.includes('outlook.com') &&
+        !email.includes('icloud.com') &&
+        !email.includes('aol.com') &&
+        !email.includes('protonmail.com') &&
+        !email.includes('mail.com')
+      );
+
+      if (businessEmails.length > 0) {
+        // Further prioritize common business email patterns
+        const priorityEmails = businessEmails.filter(email =>
+          email.startsWith('contact@') ||
+          email.startsWith('info@') ||
+          email.startsWith('hello@') ||
+          email.startsWith('support@') ||
+          email.startsWith('help@') ||
+          email.startsWith('sales@') ||
+          email.startsWith('business@') ||
+          email.startsWith('team@')
+        );
+
+        email = priorityEmails.length > 0 ? priorityEmails[0] : businessEmails[0];
+        console.log('Found business email:', email);
+      } else {
+        email = jsEmails[0];
+        console.log('Found generic email:', email);
+      }
     }
   }
   
@@ -746,4 +888,4 @@ function extractSocialHandle(url, domains) {
 
 module.exports = {
   extractWebsiteContactInfo
-}; 
+}; // Updated version - Tue Mar 18 11:38:42 IST 2025
