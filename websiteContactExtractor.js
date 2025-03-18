@@ -852,6 +852,92 @@ async function extractContactInfoFromPage(page) {
     }
   }
   
+  if (!website) {
+    console.log('Looking for website URL in page content...');
+    
+    // Try to find the actual product website using more precise methods
+    website = await page.evaluate(() => {
+      // Method 1: Look for official website link in the page header
+      const headerLinks = Array.from(document.querySelectorAll('header a')).filter(a => {
+        const text = a.textContent.toLowerCase();
+        return text.includes('website') || text.includes('visit site');
+      });
+      
+      // Method 2: Look for canonical link
+      const canonicalLink = document.querySelector('link[rel="canonical"]');
+      
+      // Method 3: Look for Open Graph URL
+      const ogUrl = document.querySelector('meta[property="og:url"]');
+
+      // Method 4: Look for official domain in meta tags
+      const metaUrl = document.querySelector('meta[name="url"], meta[name="site"]');
+
+      return headerLinks[0]?.href || 
+             canonicalLink?.href || 
+             ogUrl?.content ||
+             metaUrl?.content ||
+             '';
+    });
+
+    // Fallback: Use domain from page URL if no other found
+    if (!website && page.url()) {
+      try {
+        const urlObj = new URL(page.url());
+        website = urlObj.origin;
+      } catch (error) {
+        console.log('Error creating URL from origin:', error.message);
+      }
+    }
+  }
+  
+  // Validate the website URL to prevent common false positives
+  if (website) {
+    // Create a list of known false positives
+    const falsePositives = [
+      'bebop.ai',
+      'lu.ma', 
+      'twitter.com', 
+      'x.com', 
+      'linkedin.com',
+      'facebook.com'
+    ];
+    
+    // Check if the website seems like a false positive
+    const lowercaseWebsite = website.toLowerCase();
+    const isFalsePositive = falsePositives.some(fp => lowercaseWebsite.includes(fp));
+    
+    if (isFalsePositive) {
+      console.log(`Detected likely false positive website URL: ${website}`);
+      
+      // Only keep if there's strong evidence it's the actual website
+      const isActualWebsite = await page.evaluate((suspectDomain) => {
+        // Count mentions of the domain in prominent elements
+        const headerElements = document.querySelectorAll('header, nav, .header, .navbar, .navigation');
+        let prominentMentions = 0;
+        
+        headerElements.forEach(el => {
+          if (el.innerHTML.toLowerCase().includes(suspectDomain)) {
+            prominentMentions++;
+          }
+        });
+        
+        // Check if it appears in a prominent link
+        const prominentLinks = Array.from(document.querySelectorAll('a[href*="' + suspectDomain + '"]'))
+          .filter(a => {
+            const rect = a.getBoundingClientRect();
+            return rect.top < 500; // In the top part of the page
+          });
+        
+        return prominentMentions >= 2 || prominentLinks.length >= 2;
+      }, falsePositives.find(fp => lowercaseWebsite.includes(fp)));
+      
+      if (!isActualWebsite) {
+        console.log('Rejected false positive website URL');
+        website = '';
+      }
+    }
+  }
+  
   return { email, twitter, linkedin, website };
 }
 

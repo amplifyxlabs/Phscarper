@@ -617,9 +617,10 @@ async function getProductDetails(browser, productUrl, config) {
           /official site\s*:\s*(https?:\/\/[^\s,]+)/i,
           /homepage\s*:\s*(https?:\/\/[^\s,]+)/i,
           /website\s*:\s*([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
-          /([a-zA-Z0-9.-]+\.ai)/i,  // .ai domains are common for AI products
-          /([a-zA-Z0-9.-]+\.app)/i, // .app domains are common for apps
-          /([a-zA-Z0-9.-]+\.dev)/i  // .dev domains are common for developer tools
+          // Replace overly broad patterns with more specific ones
+          /\b((?:https?:\/\/)?[a-zA-Z0-9][a-zA-Z0-9-]*\.ai(?:\/[^\s,]*)?)\b/i,  // More precise .ai domain pattern
+          /\b((?:https?:\/\/)?[a-zA-Z0-9][a-zA-Z0-9-]*\.app(?:\/[^\s,]*)?)\b/i, // More precise .app domain pattern
+          /\b((?:https?:\/\/)?[a-zA-Z0-9][a-zA-Z0-9-]*\.dev(?:\/[^\s,]*)?)\b/i  // More precise .dev domain pattern
         ];
         
         // Try each pattern
@@ -642,6 +643,35 @@ async function getProductDetails(browser, productUrl, config) {
       
       if (websiteUrl) {
         console.log(`Found website URL in page content: ${websiteUrl}`);
+        
+        // Add validation to ensure we're not incorrectly identifying Bebop.ai
+        if (websiteUrl.toLowerCase().includes('bebop.ai')) {
+          console.log('WARNING: Bebop.ai detected as product website - likely a false positive');
+          
+          // Check if this appears to be an advertisement or unrelated content
+          const isBebopRealWebsite = await page.evaluate(() => {
+            // Count number of mentions of Bebop.ai in the page
+            const pageText = document.body.innerText.toLowerCase();
+            const bebopCount = (pageText.match(/bebop\.ai/g) || []).length;
+            
+            // If only mentioned once or twice, likely not the real website
+            if (bebopCount < 3) return false;
+            
+            // Check if there's a prominent/header link to Bebop.ai
+            const bebopLinks = Array.from(document.querySelectorAll('a[href*="bebop.ai"]'));
+            const headerBebopLink = bebopLinks.some(link => {
+              const rect = link.getBoundingClientRect();
+              return rect.top < 300; // In the header area
+            });
+            
+            return headerBebopLink || bebopCount > 5;
+          });
+          
+          if (!isBebopRealWebsite) {
+            console.log('Rejecting Bebop.ai as likely false positive');
+            websiteUrl = ''; // Reset to try other methods
+          }
+        }
       }
     }
     
