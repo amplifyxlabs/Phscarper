@@ -15,6 +15,3 @@ Thumbs.db
 
 # Screenshots from web scraping
 *.png
-
-# Package lock
-package-lock.json 
