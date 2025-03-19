@@ -292,7 +292,7 @@ async function getProductsFromLeaderboard(browser, config) {
     const products = [];
     
     // Try different selectors to find products
-    const productElements = $('a[href^="/posts/"]');
+    const productElements = $('a[href^="/products/"]');
     console.log(`Found ${productElements.length} product elements after scrolling`);
     
     productElements.each((index, element) => {
@@ -327,7 +327,7 @@ async function getProductsFromLeaderboard(browser, config) {
     
     for (const product of products) {
       // Verify it looks like a product URL (contains /posts/) and not just any link
-      if (product.url.includes('/posts/') && !seenUrls.has(product.url)) {
+      if (product.url.includes('/products/') && !seenUrls.has(product.url)) {
         seenUrls.add(product.url);
         uniqueProducts.push(product);
       }

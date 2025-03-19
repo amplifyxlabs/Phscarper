@@ -18,36 +18,79 @@ function updateTargetUrl() {
     // Read current .env file
     const envContent = fs.readFileSync(envFilePath, 'utf8');
     
+    // Get the current date to determine if we should use today or tomorrow
+    const now = new Date();
+    const currentHour = now.getHours();
+    
     // Extract current TARGET_URL
     const targetUrlMatch = envContent.match(/TARGET_URL=https:\/\/www\.producthunt\.com\/leaderboard\/daily\/(\d+)\/(\d+)\/(\d+)\/all/);
     
+    // Determine which date to use for the URL
+    let targetDate;
+    
     if (!targetUrlMatch) {
-      console.error('Could not find TARGET_URL in .env file');
-      return false;
+      console.log('TARGET_URL not found in .env file, creating a new one');
+      
+      // If it's before 5 PM, use today's date; otherwise, use tomorrow's date
+      targetDate = new Date(now);
+      if (currentHour >= 17) { // After 5 PM
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+    } else {
+      // Extract date components from existing URL
+      const year = parseInt(targetUrlMatch[1]);
+      const month = parseInt(targetUrlMatch[2]);
+      const day = parseInt(targetUrlMatch[3]);
+      
+      // Create the date object from the URL
+      const urlDate = new Date(year, month - 1, day); // Month is 0-indexed in JS
+      
+      // Get today's date with time set to 00:00:00
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // If the URL date is today and it's before 5 PM, keep using today's date
+      // If the URL date is today and it's after 5 PM, use tomorrow's date
+      // If the URL date is in the past, use today's date (if before 5 PM) or tomorrow (if after 5 PM)
+      // If the URL date is in the future, keep using that date
+      
+      if (urlDate.getTime() === today.getTime()) {
+        // URL date is today
+        targetDate = new Date(urlDate);
+        if (currentHour >= 17) { // After 5 PM
+          targetDate.setDate(targetDate.getDate() + 1);
+        }
+      } else if (urlDate.getTime() < today.getTime()) {
+        // URL date is in the past
+        targetDate = new Date(today);
+        if (currentHour >= 17) { // After 5 PM
+          targetDate.setDate(targetDate.getDate() + 1);
+        }
+      } else {
+        // URL date is in the future, keep using it
+        targetDate = new Date(urlDate);
+      }
     }
     
-    // Extract date components
-    const year = parseInt(targetUrlMatch[1]);
-    const month = parseInt(targetUrlMatch[2]);
-    const day = parseInt(targetUrlMatch[3]);
-    
-    // Create date object and increment by one day
-    const currentDate = new Date(year, month - 1, day); // Month is 0-indexed in JS
-    currentDate.setDate(currentDate.getDate() + 1);
-    
     // Format the new date
-    const newYear = currentDate.getFullYear();
-    const newMonth = currentDate.getMonth() + 1; // Month is 0-indexed
-    const newDay = currentDate.getDate();
+    const newYear = targetDate.getFullYear();
+    const newMonth = targetDate.getMonth() + 1; // Month is 0-indexed
+    const newDay = targetDate.getDate();
     
-    // Create new TARGET_URL
+    // Create new TARGET_URL with properly formatted date (no leading zeros)
     const newTargetUrl = `TARGET_URL=https://www.producthunt.com/leaderboard/daily/${newYear}/${newMonth}/${newDay}/all`;
     
-    // Update the .env file
-    const updatedEnvContent = envContent.replace(
-      /TARGET_URL=https:\/\/www\.producthunt\.com\/leaderboard\/daily\/\d+\/\d+\/\d+\/all/,
-      newTargetUrl
-    );
+    // Update or add the TARGET_URL in the .env file
+    let updatedEnvContent;
+    if (targetUrlMatch) {
+      // Replace existing TARGET_URL
+      updatedEnvContent = envContent.replace(
+        /TARGET_URL=https:\/\/www\.producthunt\.com\/leaderboard\/daily\/\d+\/\d+\/\d+\/all/,
+        newTargetUrl
+      );
+    } else {
+      // Add new TARGET_URL if it doesn't exist
+      updatedEnvContent = envContent + '\n' + newTargetUrl;
+    }
     
     // Write updated content back to .env file
     fs.writeFileSync(envFilePath, updatedEnvContent);
@@ -84,6 +127,7 @@ function findLatestCSV(directory) {
 // Main function
 async function main() {
   console.log('Starting cron-scraper...');
+  console.log(`Current time: ${new Date().toLocaleString()}`);
   
   // Update the TARGET_URL in .env
   const updated = updateTargetUrl();
@@ -93,8 +137,11 @@ async function main() {
     process.exit(1);
   }
   
+  // Reload environment variables after updating .env
+  dotenv.config();
+  
   // Run the main scraper
-  console.log('Running main scraper...');
+  console.log(`Running main scraper with TARGET_URL: ${process.env.TARGET_URL}`);
   try {
     execSync('node index.js', { stdio: 'inherit' });
     console.log('Scraper finished successfully!');
@@ -108,13 +155,21 @@ async function main() {
       
       if (latestCsvFile) {
         console.log(`Latest CSV file found: ${latestCsvFile}`);
-        await uploadCSVToGoogleSheets(latestCsvFile);
+        try {
+          await uploadCSVToGoogleSheets(latestCsvFile);
+          console.log('Data successfully exported to Google Sheets');
+        } catch (exportError) {
+          console.error(`Error exporting to Google Sheets: ${exportError.message}`);
+          // Continue execution even if export fails
+        }
       } else {
         console.error('No CSV file found to export');
       }
     } else {
       console.log('Google Sheets export skipped (GOOGLE_SHEET_ID not found in environment variables)');
     }
+    
+    console.log(`Cron job completed successfully at ${new Date().toLocaleString()}`);
   } catch (error) {
     console.error(`Error running scraper: ${error.message}`);
     process.exit(1);
@@ -122,4 +177,4 @@ async function main() {
 }
 
 // Run the main function
-main();
+main(); 
