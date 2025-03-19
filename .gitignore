@@ -16,3 +16,6 @@ Thumbs.db
 # Screenshots
 *.png
 
+google-credentials.json
+*.pem
+.env
