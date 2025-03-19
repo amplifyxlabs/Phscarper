@@ -31,11 +31,9 @@ function updateTargetUrl() {
     if (!targetUrlMatch) {
       console.log('TARGET_URL not found in .env file, creating a new one');
       
-      // If it's before 5 PM, use today's date; otherwise, use tomorrow's date
+      // Always use today's date
       targetDate = new Date(now);
-      if (currentHour >= 17) { // After 5 PM
-        targetDate.setDate(targetDate.getDate() + 1);
-      }
+      // No time-based condition, always use today's date
     } else {
       // Extract date components from existing URL
       const year = parseInt(targetUrlMatch[1]);
@@ -48,23 +46,13 @@ function updateTargetUrl() {
       // Get today's date with time set to 00:00:00
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
-      // If the URL date is today and it's before 5 PM, keep using today's date
-      // If the URL date is today and it's after 5 PM, use tomorrow's date
-      // If the URL date is in the past, use today's date (if before 5 PM) or tomorrow (if after 5 PM)
+      // Always use today's date if URL date is today or in the past
       // If the URL date is in the future, keep using that date
       
-      if (urlDate.getTime() === today.getTime()) {
-        // URL date is today
-        targetDate = new Date(urlDate);
-        if (currentHour >= 17) { // After 5 PM
-          targetDate.setDate(targetDate.getDate() + 1);
-        }
-      } else if (urlDate.getTime() < today.getTime()) {
-        // URL date is in the past
+      if (urlDate.getTime() === today.getTime() || urlDate.getTime() < today.getTime()) {
+        // URL date is today or in the past, always use today's date
         targetDate = new Date(today);
-        if (currentHour >= 17) { // After 5 PM
-          targetDate.setDate(targetDate.getDate() + 1);
-        }
+        // No time-based condition, always use today's date
       } else {
         // URL date is in the future, keep using it
         targetDate = new Date(urlDate);
