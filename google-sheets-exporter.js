@@ -189,7 +189,7 @@ function findEmailColumns(headers) {
   return emailColumns;
 }
 
-// Function to verify and filter data
+// Function to verify and add status column (no filtering)
 async function verifyAndFilterData(data) {
   if (!data || data.length < 2) {
     return data; // No data or just headers
@@ -206,51 +206,43 @@ async function verifyAndFilterData(data) {
   console.log(`Found ${emailColumns.length} email columns at indices: ${emailColumns.join(', ')}`);
   
   // Add email verification status columns if they don't exist
-  emailColumns.forEach(colIndex => {
-    const headerName = headers[colIndex];
-    if (!headers.includes(`${headerName} Verified`)) {
-      headers.push(`${headerName} Verified`);
-    }
-  });
+  headers.push('Email Verification Status');
   
-  const verifiedData = [headers]; // Start with headers
+  const processedData = [headers]; // Start with headers
   
   // Process each row (skipping header)
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     const rowWithVerification = [...row];
     
-    let rowContainsValidEmail = false;
+    let emailStatus = 'No Email';
     
     // Check each email column in the row
     for (const colIndex of emailColumns) {
+      if (colIndex >= row.length) continue;
+      
       const email = row[colIndex];
       
       if (email && email.trim()) {
         const verificationResult = await verifyEmail(email.trim());
         
-        // Add verification status to the end of the row
-        rowWithVerification.push(verificationResult.isValid ? 'Valid' : 'Invalid');
-        
         if (verificationResult.isValid) {
-          rowContainsValidEmail = true;
+          emailStatus = 'Valid';
+          break; // Found a valid email, no need to check others
         } else {
+          emailStatus = 'Invalid';
           console.log(`Invalid email in row ${i}: ${email} - ${verificationResult.message}`);
         }
-      } else {
-        // No email to verify
-        rowWithVerification.push('No Email');
       }
     }
     
-    // Only include rows with at least one valid email
-    if (rowContainsValidEmail) {
-      verifiedData.push(rowWithVerification);
-    }
+    // Add verification status and include all rows
+    rowWithVerification.push(emailStatus);
+    processedData.push(rowWithVerification);
   }
   
-  console.log(`Filtered data from ${data.length} to ${verifiedData.length} rows (including header)`);
-  return verifiedData;
+  console.log(`Processed all ${data.length} rows (including header)`);
+  return processedData;
 }
 
 // Main function
